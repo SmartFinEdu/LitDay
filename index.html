@@ -1,0 +1,580 @@
+import React, { useState } from 'react';
+import { 
+  BookOpen, Star, Brain, MessageCircle, Search, Target, Gamepad2, 
+  Calendar, Smartphone, ShoppingCart, Map, ThumbsUp, ThumbsDown, 
+  AlertCircle, Coins, TrendingUp, Lightbulb, PenTool,
+  Heart, ChevronRight, ChevronLeft, Award
+} from 'lucide-react';
+
+// --- ДАНІ ДЛЯ ІГОР ТА БЛОКІВ ---
+
+const trueFalseQuestions = [
+  { text: "Грамотна людина ніколи не помиляється.", answer: false, explanation: "Помилки допомагають нам навчатися!" },
+  { text: "Незнайоме слово можна перевірити у словнику.", answer: true, explanation: "Словники — наші найкращі друзі." },
+  { text: "Повідомлення в Інтернеті завжди правдиві.", answer: false, explanation: "Завжди перевіряй інформацію!" },
+  { text: "Перед надсиланням текст потрібно перечитати.", answer: true, explanation: "Це допоможе уникнути прикрих помилок." },
+  { text: "Ввічливість також є ознакою грамотного спілкування.", answer: true, explanation: "Етикет — частина грамотності." }
+];
+
+const punctuationQuestions = [
+  { text: "Як тебе звати", correct: "?" },
+  { text: "Я люблю читати", correct: "." },
+  { text: "Будь уважним", correct: "!" },
+  { text: "Коли розпочинається урок", correct: "?" },
+  { text: "Яка чудова книжка", correct: "!" },
+];
+
+const financialBooks = [
+  { title: "Мані, або абетка грошей", author: "Бодо Шефер", desc: "Чудова історія про дівчинку Кіру та її пса Мані, який навчив її поводитися з грошима.", icon: <Coins size={32} />, link: "https://biblioo.org/pes-na-im-ia-mani/" },
+  { title: "Найбагатша людина у Вавилоні", author: "Джордж Клейсон", desc: "Класична книга, що розкриває базові закони накопичення та примноження статків через цікаві притчі.", icon: <TrendingUp size={32} />, link: "https://chytaylo.com.ua/books/naibagatisha-lydina-vavilony/read" },
+  { title: "Багатий тато, бідний тато (для підлітків)", author: "Роберт Кійосакі", desc: "Основи фінансового мислення: чим пасив відрізняється від активу і як змусити гроші працювати на себе.", icon: <Lightbulb size={32} />, link: "https://chytaylo.com.ua/books/bagatiy-tato-badniy-tato/read" },
+  
+];
+
+const challengeDays = [
+  "Прочитати кілька сторінок книжки.",
+  "Записати нове слово.",
+  "Перевірити його значення.",
+  "Скласти з ним речення.",
+  "Написати коротке повідомлення грамотно.",
+  "Перевірити одну новину на правдивість.",
+  "Розповісти комусь про цікаву книгу."
+];
+
+// --- КОМПОНЕНТИ ---
+
+const Confetti = () => (
+  <div className="absolute left-1/2 bottom-full z-10 pointer-events-none" style={{ transform: 'translateX(-50%)' }}>
+    {[...Array(60)].map((_, i) => (
+      <div 
+        key={i}
+        className="absolute bottom-4 w-3 h-3 rounded-full"
+        style={{
+          backgroundColor: ['#facc15', '#3b82f6', '#22c55e', '#ef4444', '#a855f7', '#ec4899'][Math.floor(Math.random() * 6)],
+          left: 0,
+          animation: `shootOut ${0.6 + Math.random() * 0.8}s cubic-bezier(0.25, 1, 0.5, 1) forwards`,
+          '--tx': `${(Math.random() - 0.5) * 600}px`,
+          '--ty': `-${Math.random() * 600 + 100}px`,
+        }}
+      />
+    ))}
+    <style>{`
+      @keyframes shootOut {
+        0% { transform: translate(0, 0) scale(1); opacity: 1; }
+        60% { opacity: 1; }
+        100% { transform: translate(var(--tx), var(--ty)) scale(0); opacity: 0; }
+      }
+    `}</style>
+  </div>
+);
+
+const SlideWrapper = ({ children }) => (
+  <div className="h-full w-full flex flex-col justify-center items-center p-4 md:p-12 overflow-y-auto">
+    <div className="max-w-5xl w-full">
+      {children}
+    </div>
+  </div>
+);
+
+const TitleBadge = ({ text, color = "bg-blue-600", textColor = "text-white" }) => (
+  <div className="flex justify-center mb-8">
+    <h2 className={`${color} ${textColor} text-3xl md:text-5xl font-extrabold py-4 px-8 rounded-full shadow-lg border-4 border-white text-center transform -rotate-1`}>
+      {text}
+    </h2>
+  </div>
+);
+
+export default function App() {
+  const totalSlides = 13;
+  const maxScore = 12;
+  
+  const [currentSlide, setCurrentSlide] = useState(0);
+  const [score, setScore] = useState(0);
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  // Стани для ігор
+  const [tfAnswers, setTfAnswers] = useState({});
+  const [punctAnswers, setPunctAnswers] = useState({});
+  const [editorAnswer, setEditorAnswer] = useState(null);
+  const [marathonDone, setMarathonDone] = useState(false);
+
+  const nextSlide = () => {
+    if (currentSlide < totalSlides - 1) {
+      setCurrentSlide(prev => prev + 1);
+      setShowConfetti(false); // Скидаємо салют при перемиканні
+    }
+  };
+
+  const prevSlide = () => {
+    if (currentSlide > 0) {
+      setCurrentSlide(prev => prev - 1);
+      setShowConfetti(false);
+    }
+  };
+
+  const handleTfAnswer = (index, userChoice) => {
+    if (tfAnswers[index] !== undefined) return; // Вже відповіли
+    setTfAnswers(prev => ({ ...prev, [index]: userChoice }));
+    if (userChoice === trueFalseQuestions[index].answer) {
+      setScore(prev => prev + 1);
+    }
+  };
+
+  const handlePunctAnswer = (index, sign) => {
+    if (punctAnswers[index] !== undefined) return; 
+    setPunctAnswers(prev => ({ ...prev, [index]: sign }));
+    if (sign === punctuationQuestions[index].correct) {
+      setScore(prev => prev + 1);
+    }
+  };
+
+  const handleEditorAnswer = (word) => {
+    if (editorAnswer !== null) return;
+    setEditorAnswer(word);
+    if (word === "улюблина") {
+      setScore(prev => prev + 1);
+    }
+  };
+
+  const handleMarathonDone = () => {
+    if (marathonDone) return;
+    setMarathonDone(true);
+    setScore(prev => prev + 1);
+  };
+
+  const renderSlide = () => {
+    switch (currentSlide) {
+      case 0:
+        return (
+          <div className="text-center relative animate-fade-in">
+            <h1 className="text-5xl md:text-7xl font-black text-white mb-6 tracking-wide drop-shadow-lg mt-12">
+              Міжнародний день <br/>
+              <span className="text-yellow-400 text-6xl md:text-8xl">грамотності</span>
+            </h1>
+            <div className="bg-yellow-400 text-blue-900 text-2xl md:text-4xl font-bold py-3 px-8 rounded-full inline-block mb-6 shadow-xl">
+              Читаємо. Розуміємо. Думаємо. Створюємо.
+            </div>
+            <p className="text-white text-3xl font-bold mb-12"></p>
+            <div className="bg-white rounded-3xl p-6 text-xl md:text-2xl font-bold text-blue-800 shadow-2xl border-4 border-yellow-400 inline-flex flex-col items-center gap-4">
+              <div className="flex items-center gap-4 text-center">
+                <span>Грамотність відкриває двері до знань, мрій і великих можливостей!</span>
+              </div>
+              <p className="text-lg text-blue-600 mt-2">Виконуйте завдання та збирайте бали!</p>
+            </div>
+          </div>
+        );
+      case 1:
+        return (
+          <div className="animate-fade-in">
+            <TitleBadge text="Чому грамотність важлива?" color="bg-yellow-400" textColor="text-blue-900" />
+            <div className="bg-white rounded-3xl p-8 shadow-xl border-4 border-blue-200">
+              <h3 className="text-2xl font-bold text-blue-800 mb-6 text-center">Грамотність допомагає нам:</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 text-lg font-medium">
+                <div className="flex items-center gap-4 p-4 bg-sky-50 rounded-2xl"><BookOpen className="text-blue-500" /> навчатися;</div>
+                <div className="flex items-center gap-4 p-4 bg-sky-50 rounded-2xl"><MessageCircle className="text-purple-500" /> спілкуватися;</div>
+                <div className="flex items-center gap-4 p-4 bg-sky-50 rounded-2xl"><Brain className="text-pink-500" /> мислити;</div>
+                <div className="flex items-center gap-4 p-4 bg-sky-50 rounded-2xl"><Search className="text-green-500" /> знаходити правдиву інформацію;</div>
+                <div className="flex items-center gap-4 p-4 bg-sky-50 rounded-2xl"><PenTool className="text-orange-500" /> висловлювати свої ідеї;</div>
+                <div className="flex items-center gap-4 p-4 bg-sky-50 rounded-2xl"><Target className="text-red-500" /> досягати поставлених цілей.</div>
+              </div>
+            </div>
+          </div>
+        );
+      
+      case 2:
+        return (
+          <div className="animate-fade-in">
+            <TitleBadge text="Грамотність навколо нас" color="bg-white" textColor="text-blue-800" />
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {[
+                { icon: <Gamepad2/>, text: "читаємо правила гри" },
+                { icon: <Calendar/>, text: "користуємося розкладом" },
+                { icon: <Smartphone/>, text: "пишемо повідомлення" },
+                { icon: <BookOpen/>, text: "читаємо інструкцію" },
+                { icon: <ShoppingCart/>, text: "купуємо товар" },
+                { icon: <Map/>, text: "читаємо карту або знак" }
+              ].map((item, i) => (
+                <div key={i} className="bg-white p-6 rounded-3xl shadow-lg flex items-center gap-4 transform transition hover:scale-105 border-b-4 border-blue-300">
+                  <div className="bg-blue-100 p-3 rounded-full text-blue-600">{item.icon}</div>
+                  <span className="font-bold text-lg">{item.text}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      case 3:
+        return (
+          <div className="animate-fade-in">
+            <TitleBadge text="Суперсила Читання 📚" color="bg-purple-600" textColor="text-white" />
+            <div className="bg-white rounded-3xl p-8 shadow-xl border-4 border-purple-200">
+              <p className="text-center text-xl mb-8 font-medium">Читання книг — це як тренажерний зал для нашого мозку. Воно робить нас розумнішими, добрішими та креативнішими!</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="text-center flex flex-col items-center">
+                  <div className="bg-pink-100 p-6 rounded-full text-pink-500 mb-4 shadow-md"><Brain size={48} /></div>
+                  <h4 className="text-xl font-bold mb-2">Розвиває уяву</h4>
+                  <p className="text-gray-600">Книги створюють цілі світи у нашій голові без жодних екранів.</p>
+                </div>
+                <div className="text-center flex flex-col items-center">
+                  <div className="bg-yellow-100 p-6 rounded-full text-yellow-500 mb-4 shadow-md"><MessageCircle size={48} /></div>
+                  <h4 className="text-xl font-bold mb-2">Збагачує словник</h4>
+                  <p className="text-gray-600">Що більше читаєш, то легше красиво висловлювати думки.</p>
+                </div>
+                <div className="text-center flex flex-col items-center">
+                  <div className="bg-red-100 p-6 rounded-full text-red-500 mb-4 shadow-md"><Heart size={48} /></div>
+                  <h4 className="text-xl font-bold mb-2">Вчить співчуттю</h4>
+                  <p className="text-gray-600">Проживаючи історії героїв, ми краще розуміємо емоції інших.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
+      case 4:
+        return (
+          <div className="animate-fade-in w-full">
+            <TitleBadge text='Гра «Так чи ні?» (5 балів)' color="bg-yellow-400" textColor="text-blue-900" />
+            <div className="bg-white rounded-3xl p-6 shadow-2xl border-4 border-orange-300 w-full">
+              <div className="space-y-4">
+                {trueFalseQuestions.map((q, idx) => {
+                  const isAnswered = tfAnswers[idx] !== undefined;
+                  const isCorrect = tfAnswers[idx] === q.answer;
+                  return (
+                    <div key={idx} className="border-2 border-gray-100 p-3 md:p-4 rounded-2xl flex flex-col md:flex-row justify-between items-center gap-4 hover:bg-gray-50">
+                      <span className="font-medium text-lg flex-1 text-center md:text-left">{idx + 1}. {q.text}</span>
+                      <div className="flex gap-2 shrink-0">
+                        <button 
+                          disabled={isAnswered}
+                          onClick={() => handleTfAnswer(idx, true)}
+                          className={`p-2 rounded-xl transition ${isAnswered ? (tfAnswers[idx] === true ? 'bg-green-500 text-white' : 'bg-gray-200 opacity-50') : 'bg-gray-200 hover:bg-green-200'}`}
+                        >
+                          <ThumbsUp size={24} />
+                        </button>
+                        <button 
+                          disabled={isAnswered}
+                          onClick={() => handleTfAnswer(idx, false)}
+                          className={`p-2 rounded-xl transition ${isAnswered ? (tfAnswers[idx] === false ? 'bg-red-500 text-white' : 'bg-gray-200 opacity-50') : 'bg-gray-200 hover:bg-red-200'}`}
+                        >
+                          <ThumbsDown size={24} />
+                        </button>
+                      </div>
+                      {isAnswered && (
+                        <div className={`text-sm p-2 rounded-lg w-full md:w-1/3 text-center font-bold ${isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          {isCorrect ? '+1 бал ✅' : '❌'} {q.explanation}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        );
+      case 5:
+        return (
+          <div className="animate-fade-in w-full">
+            <TitleBadge text="Гра «Який знак?» (5 балів)" color="bg-indigo-600" textColor="text-white" />
+            <div className="bg-indigo-50 rounded-3xl p-6 md:p-8 shadow-2xl border-4 border-indigo-200">
+               <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                  <div className="space-y-4">
+                    {punctuationQuestions.map((q, idx) => {
+                      const isAnswered = punctAnswers[idx] !== undefined;
+                      return (
+                        <div key={idx} className="bg-white p-4 rounded-2xl shadow flex flex-col sm:flex-row justify-between items-center gap-4 text-lg font-bold">
+                          <span>{idx + 1}. {q.text}</span>
+                          <div className="flex gap-2">
+                            {['.', '?', '!'].map(sign => (
+                              <button
+                                key={sign}
+                                disabled={isAnswered}
+                                onClick={() => handlePunctAnswer(idx, sign)}
+                                className={`w-10 h-10 rounded-full flex items-center justify-center text-xl font-black border-2 
+                                  ${isAnswered 
+                                    ? (sign === q.correct ? 'bg-green-400 border-green-600 text-white' : (punctAnswers[idx] === sign ? 'bg-red-400 border-red-600 text-white' : 'bg-gray-100 opacity-50')) 
+                                    : 'bg-gray-100 border-gray-300 hover:bg-indigo-100'}`}
+                              >
+                                {sign}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-col justify-center space-y-6">
+                     <div className="bg-green-100 border-4 border-green-400 p-4 rounded-2xl flex items-center gap-4">
+                        <div className="w-12 h-12 bg-green-500 rounded-full text-white flex items-center justify-center text-3xl font-black shrink-0">.</div>
+                        <span className="text-xl font-medium">— спокійне повідомлення</span>
+                     </div>
+                     <div className="bg-blue-100 border-4 border-blue-400 p-4 rounded-2xl flex items-center gap-4">
+                        <div className="w-12 h-12 bg-blue-500 rounded-full text-white flex items-center justify-center text-3xl font-black shrink-0">?</div>
+                        <span className="text-xl font-medium">— запитання</span>
+                     </div>
+                     <div className="bg-red-100 border-4 border-red-400 p-4 rounded-2xl flex items-center gap-4">
+                        <div className="w-12 h-12 bg-red-500 rounded-full text-white flex items-center justify-center text-3xl font-black shrink-0">!</div>
+                        <span className="text-xl font-medium">— сильне почуття</span>
+                     </div>
+                  </div>
+               </div>
+            </div>
+          </div>
+        );
+
+      case 6:
+        return (
+          <div className="animate-fade-in text-center">
+            <TitleBadge text="Гра «Редактор» (1 бал)" color="bg-emerald-500" textColor="text-white" />
+            <div className="bg-white rounded-3xl p-8 shadow-xl border-4 border-emerald-300 max-w-3xl mx-auto">
+              <p className="text-2xl font-bold mb-6 text-slate-700">Знайди слово з помилкою у реченні:</p>
+              <div className="bg-emerald-50 text-emerald-900 text-3xl font-black p-6 rounded-2xl mb-8 shadow-inner border-2 border-emerald-200">
+                «Моя улюблина книга лежить на столі.»
+              </div>
+              <div className="flex flex-wrap justify-center gap-4">
+                {["Моя", "улюблина", "книга", "лежить"].map((word, idx) => (
+                  <button
+                    key={idx}
+                    disabled={editorAnswer !== null}
+                    onClick={() => handleEditorAnswer(word)}
+                    className={`text-xl font-bold py-3 px-8 rounded-xl transition shadow-md border-2
+                      ${editorAnswer === null ? 'bg-white hover:bg-emerald-100 border-emerald-200 text-slate-700' : 
+                        (word === "улюблина" ? 'bg-green-500 border-green-600 text-white' : 
+                          (editorAnswer === word ? 'bg-red-500 border-red-600 text-white' : 'bg-gray-100 opacity-50'))}
+                    `}
+                  >
+                    {word}
+                  </button>
+                ))}
+              </div>
+              {editorAnswer && (
+                <div className={`mt-6 p-4 rounded-xl text-lg font-bold ${editorAnswer === "улюблина" ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                  {editorAnswer === "улюблина" ? '✅ Правильно! Треба писати "улюблена". +1 бал!' : '❌ Ні, помилка в іншому слові (улюблена).'}
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      case 7:
+        return (
+          <div className="animate-fade-in text-center">
+            <TitleBadge text="Словесний марафон (1 бал)" color="bg-orange-500" textColor="text-white" />
+            <div className="bg-white rounded-3xl p-8 shadow-xl border-4 border-orange-300 max-w-2xl mx-auto">
+              <div className="bg-orange-100 text-orange-500 w-24 h-24 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg">
+                <MessageCircle size={48} />
+              </div>
+              <h3 className="text-3xl font-bold mb-4 text-slate-800">Усне завдання!</h3>
+              <p className="text-xl font-medium text-slate-600 mb-8">
+                Назви вголос <span className="font-black text-orange-600">ТРИ слова</span>, які пов'язані з книгами або читанням, за 10 секунд!
+              </p>
+              <button
+                disabled={marathonDone}
+                onClick={handleMarathonDone}
+                className={`text-2xl font-black py-4 px-12 rounded-full shadow-lg transition transform
+                  ${marathonDone ? 'bg-green-500 text-white scale-100 cursor-default' : 'bg-orange-500 text-white hover:bg-orange-400 hover:scale-105 active:scale-95'}
+                `}
+              >
+                {marathonDone ? '✅ Виконано! +1 бал' : 'Я назвав(ла)!'}
+              </button>
+            </div>
+          </div>
+        );
+      
+      case 8:
+        return (
+          <div className="animate-fade-in">
+            <TitleBadge text="Заголовок може обманювати!" color="bg-blue-500" textColor="text-white" />
+            <div className="flex flex-col md:flex-row gap-8 items-center">
+              <div className="bg-red-600 text-white p-8 rounded-3xl border-4 border-red-800 shadow-2xl relative w-full md:w-1/2 transform md:rotate-2">
+                 <div className="absolute top-2 right-2"><AlertCircle size={32} /></div>
+                 <p className="text-yellow-300 font-bold mb-2">Прочитайте заголовок:</p>
+                 <h3 className="text-3xl md:text-4xl font-black uppercase text-center my-6 leading-tight">
+                   ### ШОК! 😱<br/>Учень відкрив секрет успіху! 🧲
+                 </h3>
+              </div>
+              <div className="bg-white p-8 rounded-3xl w-full md:w-1/2 shadow-xl border-2 border-slate-200">
+                 <h4 className="bg-yellow-400 inline-block px-4 py-2 rounded-xl font-bold mb-4 text-blue-900">Поміркуйте:</h4>
+                 <ul className="space-y-4 text-lg font-medium">
+                   <li className="flex gap-3"><span className="text-red-500 font-bold">?</span> Які емоції викликає цей заголовок?</li>
+                   <li className="flex gap-3"><span className="text-red-500 font-bold">?</span> Чи зрозуміло, про що саме йдеться?</li>
+                   <li className="flex gap-3"><span className="text-red-500 font-bold">?</span> Чи може це бути клікбейт (обманка)?</li>
+                 </ul>
+                 <div className="mt-6 bg-green-100 border-l-8 border-green-500 p-4 rounded-r-2xl">
+                   <span className="bg-green-500 text-white text-xs font-bold px-2 py-1 rounded mb-2 inline-block">Варіант без обману ✅</span>
+                   <p className="font-bold text-green-900">Учень розповів, як організовує свій час для навчання.</p>
+                 </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 9:
+        return (
+          <div className="animate-fade-in">
+            <TitleBadge text="Фінансова грамотність: Що почитати?" color="bg-emerald-600" textColor="text-white" />
+            <p className="text-slate-700 text-center text-xl mb-8 font-medium max-w-3xl mx-auto">
+              Грамотність — це не лише вміння писати без помилок. Це ще й уміння правильно поводитися з грошима. Ось найкращі книги для старту:
+            </p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {financialBooks.map((book, idx) => (
+                <div key={idx} className="bg-white rounded-2xl p-6 shadow-xl border-b-8 border-emerald-600 flex flex-col hover:-translate-y-1 transition-transform">
+                  <div className="flex items-center gap-4 mb-4 text-emerald-600">
+                    {book.icon}
+                    <h3 className="text-2xl font-black text-slate-800 leading-tight">
+                      {book.link ? (
+                        <a href={book.link} target="_blank" rel="noopener noreferrer" className="hover:text-emerald-500 underline decoration-emerald-300 decoration-4 underline-offset-4 transition-colors">
+                          {book.title}
+                        </a>
+                      ) : (
+                        book.title
+                      )}
+                    </h3>
+                  </div>
+                  <p className="font-bold text-slate-500 mb-2">Автор: {book.author}</p>
+                  <p className="text-slate-700 mt-auto">{book.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+
+      case 10:
+        return (
+          <div className="animate-fade-in w-full">
+            <TitleBadge text="Челендж «7 днів грамотності»" color="bg-blue-600" textColor="text-white" />
+            <div className="bg-white rounded-3xl p-8 shadow-2xl relative border-4 border-blue-200">
+              <div className="absolute -top-6 -left-6 bg-yellow-400 text-blue-900 font-bold p-4 rounded-full shadow-lg transform -rotate-12 border-4 border-white hidden md:block">
+                Протягом тижня:
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mt-8 md:mt-4">
+                 {challengeDays.map((task, idx) => (
+                   <div key={idx} className="bg-sky-50 border-2 border-sky-200 rounded-2xl p-4 flex gap-4 items-start relative overflow-hidden group hover:bg-sky-100 transition">
+                     <div className="absolute -right-4 -bottom-4 text-sky-200 text-6xl font-black group-hover:scale-110 transition opacity-50">{idx+1}</div>
+                     <div className="bg-blue-500 text-white w-8 h-8 rounded-full flex items-center justify-center font-bold shrink-0 relative z-10">
+                       {idx + 1}
+                     </div>
+                     <p className="font-medium text-sm relative z-10">{task}</p>
+                   </div>
+                 ))}
+                 <div className="bg-yellow-100 border-2 border-yellow-300 rounded-2xl p-4 flex flex-col items-center justify-center text-center col-span-1 sm:col-span-2 lg:col-span-1">
+                   <span className="text-4xl">🏆</span>
+                   <p className="font-bold text-yellow-800 mt-2">Ти — супер грамотій!</p>
+                 </div>
+              </div>
+            </div>
+          </div>
+        );
+      case 11:
+        return (
+          <div className="animate-fade-in text-center max-w-4xl mx-auto space-y-8">
+            <TitleBadge text="⭐ Пам'ятай! ⭐" color="bg-yellow-400" textColor="text-blue-900" />
+            <div className="bg-blue-900 rounded-3xl p-8 md:p-12 border-4 border-blue-800 shadow-2xl">
+               <h3 className="text-3xl md:text-5xl font-bold text-white mb-6 leading-tight">
+                 Грамотність — це не відсутність помилок.
+               </h3>
+               <h3 className="text-4xl md:text-6xl font-black text-green-400 leading-tight">
+                 Грамотність — це бажання:
+               </h3>
+               <div className="flex flex-wrap justify-center gap-4 mt-12">
+                 {['учитися', 'думати', 'перевіряти', 'читати', 'слухати', 'поважати інших', 'ставати кращим'].map((word, i) => (
+                   <span key={i} className={`text-lg md:text-xl font-bold py-2 px-6 rounded-full shadow-lg ${
+                     ['bg-blue-500', 'bg-yellow-400 text-blue-900', 'bg-green-500', 'bg-purple-500', 'bg-pink-500', 'bg-orange-500', 'bg-teal-500'][i%7]
+                   } ${i%7 !== 1 ? 'text-white' : ''}`}>
+                     {word}
+                   </span>
+                 ))}
+               </div>
+            </div>
+          </div>
+        );
+
+      case 12:
+        return (
+          <div className="animate-fade-in text-center w-full">
+            <div className="bg-white rounded-[3rem] p-8 md:p-16 shadow-2xl border-8 border-purple-300 max-w-3xl mx-auto relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-full h-32 bg-purple-100 -z-10 rounded-b-[50%]"></div>
+              
+              <Award size={80} className={`mx-auto mb-6 ${score === maxScore ? 'text-yellow-400' : score >= 8 ? 'text-slate-400' : 'text-orange-400'}`} />
+              
+              <h1 className="text-4xl md:text-6xl font-black text-purple-800 mb-4">СЕРТИФІКАТ</h1>
+              <p className="text-2xl text-slate-600 font-bold mb-8">за успішне опанування матеріалу</p>
+              
+              <div className="bg-purple-50 rounded-3xl p-8 mb-8 border-2 border-purple-200">
+                <p className="text-xl text-slate-500 mb-2">Твій результат:</p>
+                <p className="text-6xl font-black text-purple-600 mb-4">{score} / {maxScore}</p>
+                <p className="text-2xl font-bold text-slate-800">
+                  {score === maxScore ? 'Ідеально! Ти справжній експерт з грамотності! 🌟' : 
+                   score >= 8 ? 'Чудова робота! Ти дуже добре знаєш правила! 👍' : 
+                   'Гарна спроба! Продовжуй читати та вивчати нове! 📚'}
+                </p>
+              </div>
+
+              <div className="relative inline-block mt-4">
+                {showConfetti && <Confetti />}
+                <button 
+                  onClick={() => setShowConfetti(true)}
+                  className="relative z-20 bg-yellow-400 hover:bg-yellow-300 text-yellow-900 font-bold text-2xl py-4 px-12 rounded-full shadow-xl border-4 border-white transition-transform active:scale-95"
+                >
+                  Святкувати! 🎉
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      default: return null;
+    }
+  };
+
+  // Визначаємо кольори фону залежно від слайду
+  const getBgClass = () => {
+    if (currentSlide === 0) return 'bg-blue-900 text-white';
+    if (currentSlide === 12) return 'bg-gradient-to-br from-purple-500 to-indigo-600';
+    if (currentSlide === 11) return 'bg-sky-100';
+    return 'bg-gradient-to-br from-sky-50 via-white to-blue-50';
+  };
+
+  return (
+    <div className={`h-screen w-full flex flex-col overflow-hidden text-slate-800 font-sans relative transition-colors duration-500 ${getBgClass()}`}>
+      
+      {/* Плаваюча панель з балами (з'являється лише на слайдах із завданнями) */}
+      {currentSlide > 0 && currentSlide < totalSlides - 1 && (
+        <div className="absolute top-4 right-4 z-50 flex items-center gap-2 bg-yellow-100 border-2 border-yellow-400 px-4 py-2 rounded-full font-bold text-yellow-800 shadow-lg transform transition-all">
+          <Star size={18} className="fill-current" /> Бали: {score}/{maxScore}
+        </div>
+      )}
+
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-hidden relative">
+        <SlideWrapper>
+          {renderSlide()}
+        </SlideWrapper>
+      </div>
+
+      {/* Navigation Bar */}
+      <div className="h-20 bg-white border-t border-gray-200 flex items-center justify-between px-6 md:px-12 shrink-0 z-40 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+        <button 
+          onClick={prevSlide}
+          disabled={currentSlide === 0}
+          className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold transition ${currentSlide === 0 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
+        >
+          <ChevronLeft size={24} /> <span className="hidden sm:inline">Назад</span>
+        </button>
+        
+        {/* Progress Dots/Numbers */}
+        <div className="flex items-center gap-2">
+          <span className="sm:hidden font-bold text-gray-400">{currentSlide + 1} / {totalSlides}</span>
+          <div className="hidden sm:flex gap-1.5">
+            {[...Array(totalSlides)].map((_, i) => (
+              <div key={i} className={`h-2.5 rounded-full transition-all ${currentSlide === i ? 'w-8 bg-blue-600' : 'w-2.5 bg-gray-200'}`} />
+            ))}
+          </div>
+        </div>
+
+        <button 
+          onClick={nextSlide}
+          disabled={currentSlide === totalSlides - 1}
+          className={`flex items-center gap-2 px-4 py-2 rounded-full font-bold transition ${currentSlide === totalSlides - 1 ? 'text-gray-300 cursor-not-allowed' : 'text-blue-600 hover:bg-blue-50'}`}
+        >
+          <span className="hidden sm:inline">Далі</span> <ChevronRight size={24} />
+        </button>
+      </div>
+
+    </div>
+  );
+}
